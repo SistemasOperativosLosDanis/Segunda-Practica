@@ -278,7 +278,7 @@ static int my_readdir(const char *path, void *buf, fuse_fill_dir_t filler,  off_
  * @return 0 on success and <0 on error
  **/
 static int my_open(const char *path, struct fuse_file_info *fi)
-{my_unlink
+{
     int idxDir;
 
     fprintf(stderr, "--->>>my_open: path %s, flags %d, %"PRIu64"\n", path, fi->flags, fi->fh);
@@ -519,7 +519,7 @@ static int my_unlink(const char * file){
 	nodoI-> fileSize = 0;
 	nodoI-> freeNode = true;
 
-	pdateNode(&myFileSystem,nodoIdx,nodoI);
+	updateNode(&myFileSystem,nodoIdx,nodoI);
 	
 	free(nodoI);
 	myFileSystem.nodes[nodoIdx]=NULL;
@@ -528,6 +528,18 @@ static int my_unlink(const char * file){
 	
 
 	
+}
+
+
+/**
+
+**/
+static int my_read (const char * path, char * buffer, size_t size, off_t offset, struct fuse_file_info * ffi)
+{
+	char buffer[BLOCK_SIZE_BYTES]; // 1 bloque de caracteres.
+	int bytes2Read = size, totalRead=0;
+	NodeStruct *node = myFileSystem.nodes[fi->fh]; // fh==File handle. May be filled in by filesystem in open().
+	return 0;
 }
 
 
