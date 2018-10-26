@@ -534,12 +534,43 @@ static int my_unlink(const char * file){
 /**
 
 **/
-static int my_read (const char * path, char * buffer, size_t size, off_t offset, struct fuse_file_info * ffi)
+static int my_read (const char * path, char * buf, size_t size, off_t offset, struct fuse_file_info * ffi)
 {
 	char buffer[BLOCK_SIZE_BYTES]; // 1 bloque de caracteres.
 	int bytes2Read = size, totalRead=0;
-	NodeStruct *node = myFileSystem.nodes[fi->fh]; // fh==File handle. May be filled in by filesystem in open().
-	return 0;
+	NodeStruct *node = myFileSystem.nodes[ffi->fh]; // fh==File handle. May be filled in by filesystem in open().
+	
+	//Leemos los datos, usando una estructura parecida a la de my_write
+	while(bytes2Read) {
+		
+		int currentBlock, offBloque;
+		currentBlock = node->blocks[offset / BLOCK_SIZE_BYTES];
+		offBloque = offset % BLOCK_SIZE_BYTES;
+		int readReturn;
+		 
+		// posicionas el cursor del archivo en el bloque + offset.
+		// lees un bloque entero empezando en esa posición. SI alguno de los dos falla exit.
+		if((lseek(myFileSystem.fdVirtualDisk, currentBlock * BLOCK_SIZE_BYTES, SEEK_SET) == (off_t) - 1) ||
+		        ((readReturn = read(myFileSystem.fdVirtualDisk, &buffer, BLOCK_SIZE_BYTES)) == -1)) {
+			perror("Failed lseek/read in my_write");
+			return -EIO;
+		}
+		if (readReturn != 0) {
+			// Desde el punto inicial del offset, hasta el final del bloque, escribes la información
+			// del buf (texto que nos pasan en la función) en el buffer.
+			for(int i = offBloque; (i < BLOCK_SIZE_BYTES) && (totalRead < size); i++) {
+				// fprintf(stderr, "%c", buffer[i]);
+				buf[totalRead] = buffer[i];
+				totalRead++;
+			}
+			bytes2Read -= (i - offBloque);
+			offset += i;
+		}
+	}
+	sync();
+	
+	return totalRead;
+
 }
 
 
