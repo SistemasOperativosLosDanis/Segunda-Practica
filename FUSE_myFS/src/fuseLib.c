@@ -475,9 +475,16 @@ static int my_truncate(const char *path, off_t size)
 }
 
 
-/**
-Método que borra un archivo de nuestro FS
-**/
+/** --PARTE BASICA--
+
+ * @brief Unlink a file
+ *
+ * Help from FUSE:
+ * 
+ * 
+ * @param path file path
+ * @return 0 on success and <0 on error
+ **/
 static int my_unlink(const char * file){
 
 	//Como el char* llega como parámetro como constante, lo pasamos a variable y le damos el tamaño del que llega más 1 (contando la / que indica el final
@@ -532,13 +539,24 @@ static int my_unlink(const char * file){
 
 
 /**
-
-**/
-static int my_read (const char * path, char * buf, size_t size, off_t offset, struct fuse_file_info * ffi)
+ * @brief Read data on an opened file
+ *
+ * Help from FUSE
+ *
+ * Read should return exactly the number of bytes requested except on error.
+ * 
+ * @param path file path
+ * @param buf buffer where we have data to read
+ * @param size quantity of bytes to read
+ * @param offset offset over the reading
+ * @param fi FUSE structure linked to the opened file
+ * @return 0 on success and <0 on error
+ **/
+static int my_read (const char * path, char * buf, size_t size, off_t offset, struct fuse_file_info * fi)
 {
 	char buffer[BLOCK_SIZE_BYTES]; // 1 bloque de caracteres.
 	int bytes2Read = size, totalRead=0;
-	NodeStruct *node = myFileSystem.nodes[ffi->fh]; // fh==File handle. May be filled in by filesystem in open().
+	NodeStruct *node = myFileSystem.nodes[fi->fh]; // fh==File handle. May be filled in by filesystem in open().
 	
 	//Leemos los datos, usando una estructura parecida a la de my_write
 	while(bytes2Read) {
@@ -546,27 +564,33 @@ static int my_read (const char * path, char * buf, size_t size, off_t offset, st
 		int currentBlock, offBloque;
 		currentBlock = node->blocks[offset / BLOCK_SIZE_BYTES];
 		offBloque = offset % BLOCK_SIZE_BYTES;
-		int readReturn;
+		int readB;
 		 
-		// posicionas el cursor del archivo en el bloque + offset.
-		// lees un bloque entero empezando en esa posición. SI alguno de los dos falla exit.
+		// posicionas el cursor del archivo en el bloque + offset, como en my_write.
+		// lees un bloque entero empezando en esa posición y la guardas en buffer. 
+        // Si alguno de los dos falla, exit.
 		if((lseek(myFileSystem.fdVirtualDisk, currentBlock * BLOCK_SIZE_BYTES, SEEK_SET) == (off_t) - 1) ||
-		        ((readReturn = read(myFileSystem.fdVirtualDisk, &buffer, BLOCK_SIZE_BYTES)) == -1)) {
-			perror("Failed lseek/read in my_write");
+		        ((readB = read(myFileSystem.fdVirtualDisk, &buffer, BLOCK_SIZE_BYTES)) == -1)) {
+			perror("Failed lseek/read in my_read");
 			return -EIO;
 		}
-		if (readReturn != 0) {
-			// Desde el punto inicial del offset, hasta el final del bloque, escribes la información
+
+        //Si hemos conseguido leer algo
+		if (readB != 0) {
+
+			// Desde el punto inicial del offset, hasta el final del bloque, escribimos la información
 			// del buf (texto que nos pasan en la función) en el buffer.
 			for(int i = offBloque; (i < BLOCK_SIZE_BYTES) && (totalRead < size); i++) {
 				// fprintf(stderr, "%c", buffer[i]);
-				buf[totalRead] = buffer[i];
-				totalRead++;
+				buf[totalRead++] = buffer[i];
 			}
+
+            //Descontamos lo que hemos leído
 			bytes2Read -= (i - offBloque);
 			offset += i;
 		}
 	}
+    
 	sync();
 	
 	return totalRead;
@@ -578,13 +602,13 @@ struct fuse_operations myFS_operations = {
     .getattr	= my_getattr,					// Obtain attributes from a file
     .readdir	= my_readdir,					// Read directory entries
     .truncate	= my_truncate,					// Modify the size of a file
-    .open	= my_open,					// Open a file
-    .write	= my_write,					// Write data into a file already opened
+    .open	= my_open,					        // Open a file
+    .write	= my_write,					        // Write data into a file already opened
     .release	= my_release,					// Close an opened file
-    .mknod	= my_mknod,					// Create a new file
+    .mknod	= my_mknod,					        // Create a new file
 
-    .unlink	= my_unlink,					//Borra
-    .read 	= my_read,					//Lee
+    .unlink	= my_unlink,					    //Borra
+    .read 	= my_read,					        //Lee
     
 };
 
